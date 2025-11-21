@@ -1,0 +1,263 @@
+---
+layout: ../layouts/Layout.astro
+title: Blazor の仕組みと技術アーキテクチャ完全ガイド
+description: Blazorのアーキテクチャ、レンダリングエンジン、ホスティングモデル、コンポーネントライフサイクルなどの仕組みを徹底解説
+---
+
+# Blazor の仕組みと技術アーキテクチャ完全ガイド
+
+## Blazorとは
+
+BlazorはMicrosoftが開発したWebフレームワークで、JavaScriptの代わりにC#を使用してインタラクティブなWebアプリケーションを構築できます。ReactやAngularなどの他のモダンなWebアプリケーションフレームワークと同様の、コンポーネント指向のレンダリングシステムを採用しています。
+
+## コアアーキテクチャ
+
+### コンポーネントシステム
+
+Blazorコンポーネントは再利用可能なUIパーツを表す.NETクラスです。各コンポーネントは以下の特徴を持ちます:
+
+- **独立した状態管理**: 各コンポーネントが自身の状態を保持
+- **独自のレンダリングロジック**: コンポーネント内で他のコンポーネントをレンダリング可能
+- **コンポーネント指向設計**: モダンなフレームワークと同様の設計思想
+
+### RenderTree（レンダーツリー）
+
+BlazorのDOM抽象化は**RenderTree**と呼ばれ、これはDOMの状態を軽量にコピーしたインメモリ表現です。
+
+#### RenderTreeの特徴
+
+1. **効率的な更新**: DOM自体よりも効率的に更新可能
+2. **バッチ処理**: 複数の変更を1つのDOM更新にまとめる
+3. **仮想DOMアプローチ**: ReactなどのフレームワークとHTMLツリー要素の類似した手法を採用
+
+#### 動作の仕組み
+
+コンポーネントはDOM（Document Object Model）に直接レンダリングせず、代わりに**RenderTree**と呼ばれるDOMのインメモリ表現にレンダリングします。これにより、Blazorは変更を追跡できます。
+
+## レンダリングプロセス
+
+### Diffアルゴリズム
+
+Blazorは効率的なDiffアルゴリズムを使用して、必要な要素のみをブラウザのDOMで更新します。
+
+#### 処理手順
+
+1. **新旧の比較**: 新しいRenderTreeと古いRenderTreeを比較
+2. **差分検出**: 変更内容を特定
+3. **最小限の更新**: DOMを新しいツリーに合わせるために、可能な限り最小の変更を適用
+
+#### ユニークなシーケンス番号方式
+
+- **シーケンス番号**: どの出力がどのコード行から来たかを示す
+- **線形時間の差分計算**: 一般的なツリー差分アルゴリズムよりもはるかに高速
+- **Blazor独自の手法**: 他のツリー差分UIフレームワークとは異なり、Blazorはシーケンス番号を使用
+
+#### Incremental DOM
+
+Blazorは**Incremental DOM**アプローチを採用しており、ブラウザのビューで要素を更新するために必要な作業量を最小化します。
+
+## ホスティングモデル（2025年版）
+
+### 1. Blazor Server
+
+#### 動作の仕組み
+
+- **サーバーサイド実行**: アプリのUIはサーバー上で動作
+- **シンクライアント**: ブラウザはUIを表示し、ユーザーイベントをサーバーに送信
+- **SignalR接続**: リアルタイムのSignalR接続を介して通信
+
+#### 特徴
+
+- 初期ロードが高速
+- サーバーリソースに依存
+- 常時接続が必要
+
+### 2. Blazor WebAssembly
+
+#### アーキテクチャ
+
+Blazor WebAssemblyは、アプリと共に**実際の.NETランタイム（dotnet.wasm）**を提供します。
+
+#### 動作の仕組み
+
+1. **ランタイムのダウンロード**: ユーザーがサイトを訪問すると、ブラウザがランタイムとアプリケーションDLLをダウンロード
+2. **ブラウザ内実行**: C#コードがブラウザのサンドボックス内で実行される（JavaScriptのように、ただし.NETランタイムを使用）
+3. **完全な.NETランタイム**: .NET IL（中間言語）コードを解釈・実行できる完全なランタイム
+
+#### dotnet.wasmの仕組み
+
+**dotnet.wasm**は、WebAssemblyバイナリ形式にコンパイルされた**Monoランタイム**の大きなチャンクです。
+
+##### 独自のアプローチ
+
+- **従来の方法との違い**: C#がWASMアセンブリを生成するのではなく、C#コンパイラが生成したILコードを実行できる.NET WASMが生成される
+- **JavaScriptの役割**: JavaScriptがILコード（.NET DLL）をWASMアセンブリに渡し、WASMアセンブリがそれを実行
+- **アプリケーションの互換性**: 自分の.NETアセンブリは、Monoランタイムによってロードされ解釈されると「そのまま動作」する
+
+##### 実行モデル
+
+AOTコンパイルを有効にしない場合、Blazor WebAssemblyアプリは、**Jiterpreter**（JITランタイムの部分的サポートを持つILインタプリター）を使用してブラウザ上で実行されます。
+
+##### AOTコンパイルオプション
+
+**Ahead-of-Time（AOT）コンパイル**をサポートしており、.NETコードをWebAssemblyに直接コンパイルできます:
+
+- **ネイティブ実行**: ブラウザによるネイティブWebAssembly実行が可能
+- **パフォーマンス向上**: インタープリターのオーバーヘッドを排除
+
+### 3. Blazor United（2025年）
+
+#### インテリジェントコンポーネント解決
+
+Microsoftが「インテリジェントコンポーネント解決」と呼ぶ仕組みを通じて、アプリがロードされるときに、Blazor Unitedが各コンポーネントに最適なレンダリング戦略を自動的に決定します。
+
+#### 統合機能
+
+- **ハイブリッドアプローチ**: Blazor ServerとBlazor WebAssemblyの強みを組み合わせ
+- **柔軟なレンダリング**: サーバーサイドとクライアントサイドのレンダリング
+- **ストリーミングレンダリング**: 段階的なコンテンツ配信
+- **拡張されたナビゲーションとフォーム処理**
+- **コンポーネント単位の相互運用**: コンポーネントごとにBlazor ServerまたはBlazor WebAssemblyを使用した相互運用性を追加可能
+
+## コンポーネントライフサイクル
+
+### ライフサイクルの段階
+
+Razorコンポーネントは、同期および非同期のライフサイクルメソッドのセットでライフサイクルイベントを処理します。
+
+#### 主要なステージ
+
+ライフサイクルは以下の段階を経て進行します:
+
+1. **SetParameters**: パラメータの設定
+2. **Initialized**: 初期化
+3. **ParametersSet**: パラメータの設定完了
+4. **AfterRender**: レンダリング後
+
+### 主要なライフサイクルメソッド
+
+#### SetParametersAsync
+
+コンポーネントの親（レンダーツリー内）またはルートパラメータから提供されるパラメータを設定します。
+
+#### OnInitialized / OnInitializedAsync
+
+- **OnInitialized**: 同期的に実行
+- **OnInitializedAsync**: 非同期操作を許可
+- **実行回数**: コンポーネントのライフサイクル中に1回のみ呼び出される
+
+#### OnParametersSet / OnParametersSetAsync
+
+パラメータが設定されたとき、またはコンポーネントがレンダリングされるたびに呼び出されます。
+
+#### OnAfterRender / OnAfterRenderAsync
+
+- **無限ループ回避**: OnAfterRenderAsyncからTaskを返しても、そのタスクが完了した後にフレームワークは追加のレンダーサイクルをスケジュールしない
+- **プリレンダリング制限**: サーバー上のプリレンダリングプロセス中は呼び出されないが、プリレンダリング後にコンポーネントが対話的にレンダリングされるときには呼び出される
+
+### パフォーマンス最適化（2025年更新）
+
+#### ShouldRender
+
+フレームをスキップするための主要なツールは**ShouldRender**です。無駄なレンダリングを防ぐためにオーバーライドできます。
+
+## SignalRとJavaScript相互運用
+
+### Blazor Serverでの通信
+
+Blazor Serverがブラウザと通信するために使用する接続は、**JavaScript相互運用呼び出しの処理にも使用**されます。
+
+#### メッセージサイズの制限
+
+サーバーサイドアプリの対話型コンポーネントの場合、クライアントからサーバーにデータを渡すJS相互運用呼び出しは、ハブメソッドに許可される最大SignalRメッセージサイズによって制限されます:
+
+- **制限設定**: `HubOptions.MaximumReceiveMessageSize`で強制
+- **デフォルト値**: 32 KB
+
+### JavaScript相互運用の基本
+
+BlazorフレームワークはJavaScript関数を.NET（C#）メソッドから呼び出すことができ、その逆も可能です。DOMの操作やブラウザAPIの呼び出しは、**JavaScript相互運用性（JS interop）**と呼ばれる方法で処理されます。
+
+#### SignalR経由の呼び出し
+
+Blazor Serverでは、**JS呼び出しはSignalR経由**で送信されます。
+
+### パフォーマンスのベストプラクティス
+
+#### 呼び出しの最適化
+
+- **高頻度呼び出しの回避**: スクロールやマウス移動などで高頻度の呼び出しをしない
+- **バッチ処理またはスロットリング**: まずJavaScript側でバッチ処理またはスロットリングを行う
+- **非同期呼び出し**: Blazor ServerのJS相互運用呼び出しは、ネットワーク接続を介して送信されるため、非同期にすべき
+
+## .NET 10でのBlazorの改善点
+
+### 主な機能強化
+
+1. **Blazor WebAssemblyのプリロード機能**: 初期ロード時間の最適化
+2. **自動メモリプール削除**: メモリ管理の改善
+3. **フォームバリデーションの強化**: より堅牢な検証機能
+4. **診断機能の改善**: デバッグとトラブルシューティングの向上
+
+## まとめ
+
+Blazorは、以下の技術要素を組み合わせた強力なWebフレームワークです:
+
+- **効率的なRenderTreeとDiffアルゴリズム**: 最小限のDOM更新
+- **柔軟なホスティングモデル**: Server、WebAssembly、Unitedから選択可能
+- **完全な.NETランタイム**: WebAssembly環境での真の.NET実行
+- **コンポーネントライフサイクル**: 細かい制御が可能なライフサイクルフック
+- **SignalRとJS相互運用**: ブラウザとの効率的な通信
+
+2025年のBlazor Unitedにより、これらの技術がさらに統合され、開発者はアプリケーションの各部分に最適なレンダリング戦略を自動的に選択できるようになりました。
+
+---
+
+## 参考資料
+
+### アーキテクチャと構造
+- [Project structure for Blazor apps - .NET | Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/architecture/blazor-for-web-forms-developers/project-structure)
+- [Blazor Basics: A Beginner's Guide to Blazor Architecture | by Karishma Sheth | Simform Engineering | Medium](https://medium.com/simform-engineering/blazor-basics-a-beginners-guide-to-blazor-architecture-962113daac0c)
+- [ASP.NET Core Blazor project structure | Microsoft Learn](https://learn.microsoft.com/en-us/aspnet/core/blazor/project-structure?view=aspnetcore-9.0)
+- [Architecture comparison of ASP.NET Web Forms and Blazor - .NET | Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/architecture/blazor-for-web-forms-developers/architecture-comparison)
+- [The Rise of Blazor: Architecting Modern Full-Stack Web Applications with C#](https://developersvoice.com/blog/architecture/blazor-building-modern-applications/)
+
+### 2025年のトレンドとBlazor United
+- [Blazor United in 2025: Full-Stack .NET with WASM, Server, and Hybrid Rendering](https://metadesignsolutions.com/blazor-united-in-2025-full-stack-net-with-wasm-server-and-hybrid-rendering/)
+- [The Future of Blazor: Trends, Use Cases, and What to Expect Beyond 2025 | by Reenbit | Medium](https://medium.com/@reenbit/the-future-of-blazor-trends-use-cases-and-what-to-expect-beyond-2025-fd16823f8a93)
+- [Blazor for Cross-Platform Development in 2025 - DEV Community](https://dev.to/abtosoftware/blazor-for-cross-platform-development-in-2025-5263)
+
+### コンポーネントライフサイクル
+- [ASP.NET Core Razor component lifecycle | Microsoft Learn](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/lifecycle?view=aspnetcore-10.0)
+- [Blazor Component Lifecycle Explained: Lifecycle Phases & Optimization Tips](https://saileshrijal.com.np/blog/blazor-component-lifecycle-explained/)
+- [Blazor University - Component lifecycles](https://blazor-university.com/components/component-lifecycles/)
+- [The Life Cycle of a Razor Component | Learn Blazor](https://www.learnblazor.com/component-lifecycle)
+
+### パフォーマンス最適化
+- [Boosting Blazor Performance: Measuring Component Render Times with Observability | by Marcus Kempf | Oct, 2025 | Medium](https://medium.com/@5p1k3md/boosting-blazor-performance-measuring-component-render-times-with-observability-7ffbddeedd78)
+- [Blazor ShouldRender & Lifecycle: Stop Wasteful Renders](https://amarozka.dev/blazor-shouldrender-lifecycle-performance-guide/)
+- [Blazor Best Practices for TOP Architecture and Performance](https://blog.devart.com/asp-net-core-blazor-best-practices-architecture-and-performance-optimization.html)
+- [Blazor Basics: 9 Best Practices for Building Blazor Web Apps](https://www.telerik.com/blogs/blazor-basics-9-best-practices-building-blazor-web-applications)
+
+### RenderTreeとDiffアルゴリズム
+- [Blazor University - Render trees](https://blazor-university.com/components/render-trees/)
+- [Blazor RenderTree Explained - InfoQ](https://www.infoq.com/articles/blazor-rendertree-explained/)
+- [ASP.NET Core Blazor advanced scenarios (render tree construction) | Microsoft Learn](https://learn.microsoft.com/en-us/aspnet/core/blazor/advanced-scenarios?view=aspnetcore-9.0)
+- [Does Blazor Use Virtual DOM or Incremental DOM? - Stack Overflow](https://stackoverflow.com/questions/58051710/does-blazor-use-virtual-dom-or-incremental-dom)
+- [What is Blazor and how does it work? | Medium](https://quangnguyennd.medium.com/an-introduction-to-blazor-7f2810825481)
+
+### SignalRとJavaScript相互運用
+- [ASP.NET Core Blazor JavaScript interoperability (JS interop) | Microsoft Learn](https://learn.microsoft.com/en-us/aspnet/core/blazor/javascript-interoperability/?view=aspnetcore-9.0)
+- [ASP.NET Core Blazor SignalR guidance | Microsoft Learn](https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/signalr?view=aspnetcore-9.0)
+- [Blazor JavaScript Interop: The Practical Guide](https://amarozka.dev/blazor-javascript-interop/)
+- [Pros and Cons of Using JavaScript Interop in Blazor](https://www.syncfusion.com/blogs/post/pros-and-cons-of-using-javascript-interop-in-blazor.aspx)
+
+### WebAssemblyとMonoランタイム
+- [Re-Assembling the Web with Web Assembly and Blazor](https://www.codemag.com/article/1809061/Re-Assembling-the-Web-with-Web-Assembly-and-Blazor)
+- [ASP.NET Core Blazor WebAssembly build tools and ahead-of-time (AOT) compilation | Microsoft Learn](https://learn.microsoft.com/en-us/aspnet/core/blazor/webassembly-build-tools-and-aot?view=aspnetcore-9.0)
+- [Running Blazor on Mono in the browser](https://blog.stevensanderson.com/2017/11/05/blazor-on-mono/)
+- [Dave Glick - Blazor, Razor, WebAssembly, and Mono](https://www.daveaglick.com/posts/blazor-razor-webassembly-and-mono)
+- [Understanding and Controlling the Blazor WebAssembly Startup Process - Thinktecture AG](https://www.thinktecture.com/en/blazor/understanding-and-controlling-the-blazor-webassembly-startup-process/)
+- [Compiling C# to WASM with Mono and Blazor then Debugging .NET Source with Remote Debugging in Chrome DevTools - Scott Hanselman's Blog](https://www.hanselman.com/blog/compiling-c-to-wasm-with-mono-and-blazor-then-debugging-net-source-with-remote-debugging-in-chrome-devtools)
+
+*最終更新日: 2025年11月21日*
